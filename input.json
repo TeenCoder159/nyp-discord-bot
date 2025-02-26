@@ -1,0 +1,9 @@
+{
+  "model": "pixtral-12b-2409",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Who is the best French painter? Answer in one short sentence."
+    }
+  ]
+}

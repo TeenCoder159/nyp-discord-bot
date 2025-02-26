@@ -1,5 +1,6 @@
 use ::serenity::all::GuildId;
 use poise::serenity_prelude as serenity;
+use serde_json::Value;
 
 #[derive(Debug)]
 struct Data {}
@@ -17,7 +18,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![help()],
+            commands: vec![help(), chatgpt()],
             manual_cooldowns: true,
             ..Default::default()
         })
@@ -40,14 +41,15 @@ async fn main() {
 }
 
 /// Ping the helpers
-#[poise::command(slash_command, required_bot_permissions = "ADMINISTRATOR")]
+#[poise::command(slash_command)]
 async fn help(ctx: Context<'_>) -> Result<(), Error> {
     let response: String;
     {
         let mut cooldown_tracker = ctx.command().cooldowns.lock().unwrap();
 
         let mut cooldown_durations = poise::CooldownConfig::default();
-        cooldown_durations.user = Some(std::time::Duration::from_secs(15 * 60));
+
+        cooldown_durations.guild = Some(std::time::Duration::from_secs(15 * 60));
 
         match cooldown_tracker.remaining_cooldown(ctx.cooldown_context(), &cooldown_durations) {
             Some(remaining) => {
@@ -70,4 +72,65 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
     )
     .await?;
     Ok(())
+}
+
+//
+
+#[poise::command(slash_command, prefix_command)]
+async fn chatgpt(
+    ctx: Context<'_>,
+    #[description = "Input to ChatGPT"] input: String,
+) -> Result<(), Error> {
+    // Defer the response once to indicate the bot is processing
+    ctx.defer().await?;
+
+    // Send a temporary message
+    ctx.say("Generating response, please wait...").await?;
+
+    // Get response from API
+    let output = get(input).await;
+
+    // Parse the response
+    let message: String = match output.lines().find(|x| x.contains("content\"")) {
+        Some(line) => {
+            let (_, a) = line
+                .split_once("content\":\"")
+                .expect("Failed to parse content");
+            let (b, _) = a.split_once("}").expect("Failed to parse content end");
+            b.to_string()
+        }
+        None => "Sorry, I couldn't generate a response.".to_string(),
+    };
+
+    // Send the actual response
+    ctx.say(message).await?;
+
+    Ok(())
+}
+
+async fn get(input: String) -> String {
+    let client = reqwest::Client::new();
+    let v: Value = serde_json::from_str(
+        std::fs::read_to_string("input.json")
+            .expect("Error while reading")
+            .replace(
+                r#""Who is the best French painter? Answer in one short sentence.""#,
+                format!("\"{}\"", input).as_str(),
+            )
+            .as_str(),
+    )
+    .expect("GO TO HELL");
+
+    let res = client
+        .post("https://api.mistral.ai/v1/chat/completions")
+        .bearer_auth(std::env::var("MISTRAL_API_KEY").expect("Error getting API KEY"))
+        .json(&v)
+        .send()
+        .await
+        .expect("msg")
+        .text()
+        .await
+        .expect("msg");
+    println!("{res}");
+    res
 }
