@@ -4,6 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+chrono = "0.4.39"
+mistralai = "0.1.0"
+mistralai-client = "0.14.0"
 poise = "0.6.1"
 serenity = { version = "0.12.3", default-features = false, features = [
     "client",

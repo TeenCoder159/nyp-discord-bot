@@ -1,117 +1,116 @@
-#![warn(clippy::str_to_string)]
-
-mod commands;
-
+use ::serenity::all::GuildId;
+use chrono::{DateTime, Local};
+// use mistralai_client::v1::{
+//     chat::{ChatMessage, ChatMessageRole, ChatParams},
+//     // client::Client,
+//     constants::Model,
+// };
 use poise::serenity_prelude as serenity;
-use std::{
-    collections::HashMap,
-    env::var,
-    sync::{Arc, Mutex},
-    time::Duration,
-};
+use std::sync::LazyLock;
 
-// Types used by all command functions
+#[derive(Debug)]
+struct Data {}
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type Context<'a> = poise::Context<'a, Data, Error>;
 
-// Custom user data passed to all command functions
-pub struct Data {
-    votes: Mutex<HashMap<String, u32>>,
-}
-
-async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
-    // This is our custom error handler
-    // They are many errors that can occur, so we only handle the ones we want to customize
-    // and forward the rest to the default handler
-    match error {
-        poise::FrameworkError::Setup { error, .. } => panic!("Failed to start bot: {:?}", error),
-        poise::FrameworkError::Command { error, ctx, .. } => {
-            println!("Error in command `{}`: {:?}", ctx.command().name, error,);
-        }
-        error => {
-            if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {}", e)
-            }
-        }
-    }
-}
-
 #[tokio::main]
 async fn main() {
-    // FrameworkOptions contains all of poise's configuration option in one struct
-    // Every option can be omitted to use its default value
-    let options = poise::FrameworkOptions {
-        commands: vec![commands::help(), commands::vote(), commands::getvotes()],
-        prefix_options: poise::PrefixFrameworkOptions {
-            prefix: Some("~".into()),
-            edit_tracker: Some(Arc::new(poise::EditTracker::for_timespan(
-                Duration::from_secs(3600),
-            ))),
-            additional_prefixes: vec![
-                poise::Prefix::Literal("hey bot,"),
-                poise::Prefix::Literal("hey bot"),
-            ],
-            ..Default::default()
-        },
-        // The global error handler for all error cases that may occur
-        on_error: |error| Box::pin(on_error(error)),
-        // This code is run before every command
-        pre_command: |ctx| {
-            Box::pin(async move {
-                println!("Executing command {}...", ctx.command().qualified_name);
-            })
-        },
-        // This code is run after a command if it was successful (returned Ok)
-        post_command: |ctx| {
-            Box::pin(async move {
-                println!("Executed command {}!", ctx.command().qualified_name);
-            })
-        },
-        // Every command invocation must pass this check to continue execution
-        command_check: Some(|ctx| {
-            Box::pin(async move {
-                if ctx.author().id == 123456789 {
-                    return Ok(false);
-                }
-                Ok(true)
-            })
-        }),
-        // Enforce command checks even for owners (enforced by default)
-        // Set to true to bypass checks, which is useful for testing
-        skip_checks_for_owners: false,
-        event_handler: |_ctx, event, _framework, _data| {
-            Box::pin(async move {
-                println!(
-                    "Got an event in event handler: {:?}",
-                    event.snake_case_name()
-                );
-                Ok(())
-            })
-        },
-        ..Default::default()
-    };
+    let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
+    let guild_id = std::env::var("GUILD_ID")
+        .expect("missing GUILD_ID")
+        .parse::<GuildId>()
+        .expect("GUILD_ID must be a valid u64");
+    let intents = serenity::GatewayIntents::all();
 
     let framework = poise::Framework::builder()
+        .options(poise::FrameworkOptions {
+            commands: vec![help(), mistral()],
+            ..Default::default()
+        })
         .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
-                println!("Logged in as {}", _ready.user.name);
-                poise::builtins::register_globally(ctx, &framework.options().commands).await?;
-                Ok(Data {
-                    votes: Mutex::new(HashMap::new()),
-                })
+                // Register commands in the specified guild
+                poise::builtins::register_in_guild(ctx, &framework.options().commands, guild_id)
+                    .await?;
+                Ok(Data {})
             })
         })
-        .options(options)
         .build();
 
-    let token = var("DISCORD_TOKEN")
-        .expect("Missing `DISCORD_TOKEN` env var, see README for more information.");
-    let intents =
-        serenity::GatewayIntents::non_privileged() | serenity::GatewayIntents::MESSAGE_CONTENT;
-
-    let client = serenity::ClientBuilder::new(token, intents)
+    let mut client = serenity::ClientBuilder::new(token, intents)
         .framework(framework)
-        .await;
+        .await
+        .expect("Error creating client");
 
-    client.unwrap().start().await.unwrap()
+    client.start().await.expect("Error starting client");
+}
+
+static LAST_HELP_CALL: LazyLock<DateTime<Local>> = LazyLock::new(Local::now);
+
+/// Ping the helpers
+#[poise::command(
+    slash_command,
+    required_permissions = "SEND_MESSAGES",
+    on_error = "error_handler"
+)]
+async fn help(ctx: Context<'_>) -> Result<(), Error> {
+    let response: &str;
+
+    let current_time = Local::now();
+    let time_diff = (*LAST_HELP_CALL - current_time).num_minutes();
+    if time_diff > 1 {
+        response = "<@&1344212981038317578>"
+    } else {
+        response = "Too early!\nPlease wait at least 15 minutes after asking for help.";
+    }
+
+    ctx.say(response).await?;
+    Ok(())
+}
+#[poise::command(slash_command, prefix_command)]
+async fn mistral(ctx: Context<'_>, #[description = "Input"] input: String) -> Result<(), Error> {
+    // let user_input = input;
+    // let client = Client::new(None, None, None, None).unwrap();
+
+    // let model = Model::OpenMistral7b;
+    // let messages = vec![ChatMessage {
+    //     role: ChatMessageRole::User,
+    //     content: user_input.clone(),
+    //     tool_calls: None,
+    // }];
+    // let options = ChatParams {
+    //     temperature: 0.0,
+    //     random_seed: Some(42),
+    //     ..Default::default()
+    // };
+    // let result = client.chat(model, messages, Some(options)).unwrap();
+    // let response = &result.choices[0].message.content;
+
+    // let client = Client::new(None, None, None, None).unwrap();
+
+    // let model = Model::OpenMistral7b;
+    // let messages = vec![ChatMessage {
+    //     role: ChatMessageRole::User,
+    //     content: input,
+    //     tool_calls: None,
+    // }];
+    // let options = ChatParams {
+    //     temperature: 0.0,
+    //     random_seed: Some(42),
+    //     ..Default::default()
+    // };
+
+    // let result = client
+    //     .chat_async(model, messages, Some(options))
+    //     .await
+    //     .unwrap();
+    // let response = &result.choices[0].message.content;
+    let response = " ";
+
+    ctx.say(response).await?;
+    Ok(())
+}
+
+async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
+    println!("Oh no, we got an error: {:?}", error);
 }
