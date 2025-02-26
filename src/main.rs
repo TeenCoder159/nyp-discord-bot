@@ -1,12 +1,4 @@
-use std::fmt::format;
-
 use ::serenity::all::GuildId;
-use chrono::{DateTime, Local};
-// use mistralai_client::v1::{
-//     chat::{ChatMessage, ChatMessageRole, ChatParams},
-//     // client::Client,
-//     constants::Model,
-// };
 use poise::serenity_prelude as serenity;
 
 #[derive(Debug)]
