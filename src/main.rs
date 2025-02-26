@@ -1,3 +1,5 @@
+use std::fmt::format;
+
 use ::serenity::all::GuildId;
 use chrono::{DateTime, Local};
 // use mistralai_client::v1::{
@@ -6,7 +8,6 @@ use chrono::{DateTime, Local};
 //     constants::Model,
 // };
 use poise::serenity_prelude as serenity;
-use std::sync::LazyLock;
 
 #[derive(Debug)]
 struct Data {}
@@ -24,7 +25,8 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![help(), mistral()],
+            commands: vec![help()],
+            manual_cooldowns: true,
             ..Default::default()
         })
         .setup(move |ctx, _ready, framework| {
@@ -45,72 +47,35 @@ async fn main() {
     client.start().await.expect("Error starting client");
 }
 
-static LAST_HELP_CALL: LazyLock<DateTime<Local>> = LazyLock::new(Local::now);
-
 /// Ping the helpers
-#[poise::command(
-    slash_command,
-    required_permissions = "SEND_MESSAGES",
-    on_error = "error_handler"
-)]
+#[poise::command(slash_command, required_bot_permissions = "ADMINISTRATOR")]
 async fn help(ctx: Context<'_>) -> Result<(), Error> {
-    let response: &str;
+    let response: String;
+    {
+        let mut cooldown_tracker = ctx.command().cooldowns.lock().unwrap();
 
-    let current_time = Local::now();
-    let time_diff = (*LAST_HELP_CALL - current_time).num_minutes();
-    if time_diff > 1 {
-        response = "<@&1344212981038317578>"
-    } else {
-        response = "Too early!\nPlease wait at least 15 minutes after asking for help.";
+        let mut cooldown_durations = poise::CooldownConfig::default();
+        cooldown_durations.user = Some(std::time::Duration::from_secs(15 * 60));
+
+        match cooldown_tracker.remaining_cooldown(ctx.cooldown_context(), &cooldown_durations) {
+            Some(remaining) => {
+                let minutes = remaining.as_secs() / 60;
+                let seconds = remaining.as_secs() % 60;
+
+                response = format!("Please wait {}m {}s", minutes, seconds);
+            }
+            None => {
+                cooldown_tracker.start_cooldown(ctx.cooldown_context());
+                response = "<@&1344212981038317578>".to_string();
+            }
+        }
     }
-
-    ctx.say(response).await?;
+    use serenity::builder::CreateAllowedMentions as Am;
+    ctx.send(
+        poise::CreateReply::default()
+            .content(&response)
+            .allowed_mentions(Am::new().roles(vec![1344212981038317578])),
+    )
+    .await?;
     Ok(())
-}
-#[poise::command(slash_command, prefix_command)]
-async fn mistral(ctx: Context<'_>, #[description = "Input"] input: String) -> Result<(), Error> {
-    // let user_input = input;
-    // let client = Client::new(None, None, None, None).unwrap();
-
-    // let model = Model::OpenMistral7b;
-    // let messages = vec![ChatMessage {
-    //     role: ChatMessageRole::User,
-    //     content: user_input.clone(),
-    //     tool_calls: None,
-    // }];
-    // let options = ChatParams {
-    //     temperature: 0.0,
-    //     random_seed: Some(42),
-    //     ..Default::default()
-    // };
-    // let result = client.chat(model, messages, Some(options)).unwrap();
-    // let response = &result.choices[0].message.content;
-
-    // let client = Client::new(None, None, None, None).unwrap();
-
-    // let model = Model::OpenMistral7b;
-    // let messages = vec![ChatMessage {
-    //     role: ChatMessageRole::User,
-    //     content: input,
-    //     tool_calls: None,
-    // }];
-    // let options = ChatParams {
-    //     temperature: 0.0,
-    //     random_seed: Some(42),
-    //     ..Default::default()
-    // };
-
-    // let result = client
-    //     .chat_async(model, messages, Some(options))
-    //     .await
-    //     .unwrap();
-    // let response = &result.choices[0].message.content;
-    let response = " ";
-
-    ctx.say(response).await?;
-    Ok(())
-}
-
-async fn error_handler(error: poise::FrameworkError<'_, Data, Error>) {
-    println!("Oh no, we got an error: {:?}", error);
 }
