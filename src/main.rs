@@ -103,6 +103,7 @@ async fn chatgpt(
     };
 
     // Send the actual response
+    println!("{message}");
     ctx.say(message).await?;
 
     Ok(())
@@ -131,6 +132,5 @@ async fn get(input: String) -> String {
         .text()
         .await
         .expect("msg");
-    println!("{res}");
     res
 }
