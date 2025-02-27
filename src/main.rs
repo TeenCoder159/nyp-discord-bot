@@ -1,6 +1,12 @@
-use ::serenity::all::GuildId;
+use std::hash::{DefaultHasher, Hash, Hasher};
+
+use ::serenity::all::{GuildId, Timestamp};
 use poise::serenity_prelude as serenity;
 use serde_json::Value;
+use serenity::builder::CreateChannel;
+use serenity::model::channel::ChannelType;
+use serenity::model::channel::{PermissionOverwrite, PermissionOverwriteType};
+use serenity::model::permissions::Permissions;
 
 #[derive(Debug)]
 struct Data {}
@@ -18,7 +24,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![help(), chatgpt()],
+            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket(), mute()],
             manual_cooldowns: true,
             ..Default::default()
         })
@@ -42,7 +48,7 @@ async fn main() {
 
 /// Ping the helpers
 #[poise::command(slash_command)]
-async fn help(ctx: Context<'_>) -> Result<(), Error> {
+async fn hw_help(ctx: Context<'_>) -> Result<(), Error> {
     let response: String;
     {
         let mut cooldown_tracker = ctx.command().cooldowns.lock().unwrap();
@@ -74,7 +80,146 @@ async fn help(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-//
+///Create a ticket to report something
+#[poise::command(slash_command)]
+async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
+    // Get the user's ID and extract the first 4 digits
+    let user_id = ctx.author().id.to_string();
+    let mut hashed_prefix = DefaultHasher::new();
+    user_id.hash(&mut hashed_prefix);
+
+    let id_prefix = if user_id.len() >= 4 {
+        &hashed_prefix.finish().to_string()[0..4]
+    } else {
+        &hashed_prefix.finish().to_string()
+    };
+
+    // Get guild information
+    let guild = ctx.guild_id().unwrap();
+
+    // Create permission overwrites array
+    let mut perms = Vec::new();
+
+    // Default deny permission for everyone (making channel private)
+    perms.push(PermissionOverwrite {
+        allow: Permissions::empty(),
+        deny: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
+        kind: PermissionOverwriteType::Role(guild.everyone_role()),
+    });
+
+    // Allow permission for ticket creator
+    perms.push(PermissionOverwrite {
+        allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
+        deny: Permissions::empty(),
+        kind: PermissionOverwriteType::Member(ctx.author().id),
+    });
+
+    // Find and add permissions for all admin roles
+    if let Ok(guild_roles) = ctx.guild_id().unwrap().roles(ctx.http()).await {
+        for (role_id, role) in guild_roles {
+            if role.permissions.contains(Permissions::ADMINISTRATOR) {
+                perms.push(PermissionOverwrite {
+                    allow: Permissions::VIEW_CHANNEL | Permissions::SEND_MESSAGES,
+                    deny: Permissions::empty(),
+                    kind: PermissionOverwriteType::Role(role_id),
+                });
+            }
+        }
+    }
+
+    // Create the channel with the first 4 digits of the user ID
+    let ticket = CreateChannel::new(format!("ticket-{}", id_prefix))
+        .kind(ChannelType::Text)
+        .permissions(perms);
+
+    // Properly await the channel creation and handle errors
+    match guild.create_channel(ctx.http(), ticket).await {
+        Ok(channel) => {
+            // Send an ephemeral message (only visible to the command invoker)
+            ctx.send(
+                poise::CreateReply::default()
+                    .content(format!("Your ticket has been created: <#{}>", channel.id))
+                    .ephemeral(true),
+            )
+            .await?;
+        }
+        Err(e) => {
+            // Also make error message ephemeral
+            ctx.send(
+                poise::CreateReply::default()
+                    .content(format!("Failed to create ticket: {}", e))
+                    .ephemeral(true),
+            )
+            .await?;
+            eprintln!("Error creating ticket channel: {}", e);
+        }
+    }
+
+    Ok(())
+}
+
+#[poise::command(slash_command, required_permissions = "ADMINISTRATOR")]
+async fn close_ticket(ctx: Context<'_>) -> Result<(), Error> {
+    // Check if the channel is a ticket channel
+    let channel = ctx.channel_id().to_channel(ctx.http()).await?;
+    let channel_name = channel.guild().unwrap().name;
+
+    if !channel_name.contains("ticket") {
+        ctx.send(
+            poise::CreateReply::default()
+                .content("This is not a ticket channel.")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
+    }
+
+    // Delete the channel
+    ctx.channel_id().delete(ctx.http()).await?;
+
+    // We don't need to send a confirmation message because the channel is deleted
+
+    Ok(())
+}
+
+/// Mute a user
+#[poise::command(slash_command, required_permissions = "VIEW_AUDIT_LOG", prefix_command)]
+async fn mute(
+    ctx: Context<'_>,
+    #[description = "User to mute"] user: serenity::model::user::User,
+) -> Result<(), Error> {
+    // Get the guild member from the user
+    let guild_id = ctx.guild_id().unwrap();
+    let mut member = guild_id.member(ctx.http(), user.id).await?;
+
+    // Apply the server mute (this affects voice channels)
+    match member
+        .disable_communication_until_datetime(
+            ctx.http(),
+            Timestamp::from_unix_timestamp(1740781600).expect("Error while parsing"),
+        )
+        .await
+    {
+        Ok(_) => {
+            ctx.send(
+                poise::CreateReply::default()
+                    .content(format!("Successfully muted {}", user.name))
+                    .ephemeral(false),
+            )
+            .await?;
+        }
+        Err(e) => {
+            ctx.send(
+                poise::CreateReply::default()
+                    .content(format!("Error while muting {}. Error: {e}", user.name))
+                    .ephemeral(false),
+            )
+            .await?;
+        }
+    }
+
+    Ok(())
+}
 
 #[poise::command(slash_command, prefix_command)]
 async fn chatgpt(

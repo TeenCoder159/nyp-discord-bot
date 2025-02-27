@@ -5,13 +5,7 @@ edition = "2024"
 
 [dependencies]
 poise = "0.6.1"
-serenity = { version = "0.12.3", default-features = false, features = [
-    "client",
-    "gateway",
-    "rustls_backend",
-    "model",
-    "builder",
-] }
+serenity = { version = "0.12.3", default-features = false, features = ["full"] }
 tokio = { version = "1.0", features = ["full"] }
 reqwest = { version = "0.12", features = ["json"] }
 serde = "1.0.218"
