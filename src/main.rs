@@ -1,6 +1,6 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-use ::serenity::all::{GuildId, Timestamp};
+use ::serenity::all::{ChannelId, CreateMessage, GuildId};
 use poise::serenity_prelude as serenity;
 use serde_json::Value;
 use serenity::builder::CreateChannel;
@@ -24,7 +24,10 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket(), mute()],
+            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket()],
+            event_handler: |ctx, event, framework, data| {
+                Box::pin(async move { event_handler(ctx, event, framework, data).await })
+            },
             manual_cooldowns: true,
             ..Default::default()
         })
@@ -182,42 +185,23 @@ async fn close_ticket(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-/// Mute a user
-#[poise::command(slash_command, required_permissions = "VIEW_AUDIT_LOG", prefix_command)]
-async fn mute(
-    ctx: Context<'_>,
-    #[description = "User to mute"] user: serenity::model::user::User,
+async fn event_handler(
+    ctx: &serenity::Context, // Change this line
+    event: &serenity::FullEvent,
+    _framework: poise::FrameworkContext<'_, Data, Error>,
+    _data: &Data,
 ) -> Result<(), Error> {
-    // Get the guild member from the user
-    let guild_id = ctx.guild_id().unwrap();
-    let mut member = guild_id.member(ctx.http(), user.id).await?;
-
-    // Apply the server mute (this affects voice channels)
-    match member
-        .disable_communication_until_datetime(
-            ctx.http(),
-            Timestamp::from_unix_timestamp(1740781600).expect("Error while parsing"),
-        )
-        .await
-    {
-        Ok(_) => {
-            ctx.send(
-                poise::CreateReply::default()
-                    .content(format!("Successfully muted {}", user.name))
-                    .ephemeral(false),
-            )
-            .await?;
+    match event {
+        poise::serenity_prelude::FullEvent::GuildMemberAddition { new_member } => {
+            let _greet_channel = ChannelId::new(1344976093332901958)
+                .send_message(
+                    &ctx.http, // Change this line
+                    CreateMessage::new().content(format!("Hello {new_member}")),
+                )
+                .await?;
         }
-        Err(e) => {
-            ctx.send(
-                poise::CreateReply::default()
-                    .content(format!("Error while muting {}. Error: {e}", user.name))
-                    .ephemeral(false),
-            )
-            .await?;
-        }
+        _ => {}
     }
-
     Ok(())
 }
 
