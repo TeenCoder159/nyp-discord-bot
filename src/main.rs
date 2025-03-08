@@ -52,6 +52,7 @@ async fn main() {
 /// Ping the helpers
 #[poise::command(slash_command)]
 async fn hw_help(ctx: Context<'_>) -> Result<(), Error> {
+    println!("Homework help command called by: {}", ctx.author());
     let response: String;
     {
         let mut cooldown_tracker = ctx.command().cooldowns.lock().unwrap();
@@ -86,6 +87,7 @@ async fn hw_help(ctx: Context<'_>) -> Result<(), Error> {
 ///Create a ticket to report something
 #[poise::command(slash_command)]
 async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
+    println!("Ticket command called by: {}", ctx.author());
     // Get the user's ID and extract the first 4 digits
     let user_id = ctx.author().id.to_string();
     let mut hashed_prefix = DefaultHasher::new();
@@ -163,6 +165,7 @@ async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
 
 #[poise::command(slash_command, required_permissions = "ADMINISTRATOR")]
 async fn close_ticket(ctx: Context<'_>) -> Result<(), Error> {
+    println!("Close ticket command called by: {}", ctx.author());
     // Check if the channel is a ticket channel
     let channel = ctx.channel_id().to_channel(ctx.http()).await?;
     let channel_name = channel.guild().unwrap().name;
@@ -199,6 +202,7 @@ async fn event_handler(
                     CreateMessage::new().content(format!("Hello {new_member}")),
                 )
                 .await?;
+            println!("Greeted {}", new_member);
         }
         _ => {}
     }
@@ -217,7 +221,7 @@ async fn chatgpt(
     ctx.say("Generating response, please wait...").await?;
 
     // Get response from API
-    let output = get(input).await;
+    let output = get(input.clone()).await;
 
     // Parse the response
     let message: String = match output.lines().find(|x| x.contains("content\"")) {
@@ -232,8 +236,14 @@ async fn chatgpt(
     };
 
     // Send the actual response
-    println!("{message}");
-    ctx.say(message).await?;
+    ctx.say(message.clone()).await?;
+
+    println!(
+        "Close ticket command called by: {} with prompt: {}\nOutput generated: {}",
+        ctx.author(),
+        input,
+        message
+    );
 
     Ok(())
 }
