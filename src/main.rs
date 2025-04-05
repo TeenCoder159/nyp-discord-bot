@@ -209,6 +209,38 @@ async fn event_handler(
     Ok(())
 }
 
+// #[poise::command(slash_command)]
+// async fn bored(
+//     ctx: &serenity::Context, // Change this line
+//     event: &serenity::FullEvent,
+//     _framework: poise::FrameworkContext<'_, Data, Error>,
+//     _data: &Data,
+// ) -> Result<(), Error> {
+// }
+#[poise::command(slash_command)]
+async fn bored(ctx: Context<'_>) -> Result<(), Error> {
+    let i = get("I'm bored".to_string()).await;
+    let message: String = match i.lines().find(|x| x.contains("content\"")) {
+        Some(line) => {
+            let (_, a) = line
+                .split_once("content\":\"")
+                .expect("Failed to parse content");
+            let (b, _) = a.split_once("}").expect("Failed to parse content end");
+
+            b.to_string()
+        }
+        None => "Sorry I couldn't generate a response.".to_string(),
+    };
+    ctx.say(message.clone()).await?;
+    println!(
+        "Bored command called by: {} with output: {}",
+        ctx.author(),
+        message
+    );
+
+    Ok(())
+}
+
 #[poise::command(slash_command, prefix_command)]
 async fn chatgpt(
     ctx: Context<'_>,
@@ -239,7 +271,7 @@ async fn chatgpt(
     ctx.say(message.clone()).await?;
 
     println!(
-        "Close ticket command called by: {} with prompt: {}\nOutput generated: {}",
+        "Chatgpt called by: {} with prompt: {}\nOutput generated: {}",
         ctx.author(),
         input,
         message
