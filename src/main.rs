@@ -24,7 +24,7 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket()],
+            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket(), bored()],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(async move { event_handler(ctx, event, framework, data).await })
             },
