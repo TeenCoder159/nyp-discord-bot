@@ -1,4 +1,5 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
+// use std::thread;
 
 use ::serenity::all::{ChannelId, CreateMessage, GuildId};
 use poise::serenity_prelude as serenity;
@@ -24,7 +25,14 @@ async fn main() {
 
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![hw_help(), chatgpt(), ticket(), close_ticket(), bored()],
+            commands: vec![
+                hw_help(),
+                chatgpt(),
+                ticket(),
+                close_ticket(),
+                bored(),
+                links(),
+            ],
             event_handler: |ctx, event, framework, data| {
                 Box::pin(async move { event_handler(ctx, event, framework, data).await })
             },
@@ -237,6 +245,19 @@ async fn bored(ctx: Context<'_>) -> Result<(), Error> {
         ctx.author(),
         message
     );
+
+    Ok(())
+}
+
+#[poise::command(slash_command)]
+async fn links(ctx: Context<'_>) -> Result<(), Error> {
+    let sit_link = std::env::var("TELE").expect("Telegram Link not set");
+    let discord_link = std::env::var("DISC").expect("Discord Link not set");
+    let nyp_link = std::env::var("NYP").expect("Telegram Link not set");
+    let message = format!(
+        "\n# Invite links:\nSIT Telegram: {sit_link}\nNYP Telegram: {nyp_link}\nDiscord: {discord_link}\n\n# Useful websites:\nPlease look in the resources channel: <#1344960997437210687>\n"
+    );
+    ctx.say(message).await?;
 
     Ok(())
 }
