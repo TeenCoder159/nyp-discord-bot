@@ -92,7 +92,7 @@ async fn hw_help(ctx: Context<'_>) -> Result<(), Error> {
     Ok(())
 }
 
-///Create a ticket to report something
+/// Create a ticket to report something
 #[poise::command(slash_command)]
 async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
     println!("Ticket command called by: {}", ctx.author());
@@ -172,6 +172,7 @@ async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command, required_permissions = "ADMINISTRATOR")]
+/// Close an exisiting ticket (Admin only)
 async fn close_ticket(ctx: Context<'_>) -> Result<(), Error> {
     println!("Close ticket command called by: {}", ctx.author());
     // Check if the channel is a ticket channel
@@ -226,8 +227,9 @@ async fn event_handler(
 // ) -> Result<(), Error> {
 // }
 #[poise::command(slash_command)]
+/// Are you bored?
 async fn bored(ctx: Context<'_>) -> Result<(), Error> {
-    let i = get("I'm bored".to_string()).await;
+    let i = get("I'm bored, give me 10 random things to do".to_string()).await;
     let message: String = match i.lines().find(|x| x.contains("content\"")) {
         Some(line) => {
             let (_, a) = line
@@ -250,6 +252,7 @@ async fn bored(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command)]
+/// Get the useful links for NYP
 async fn links(ctx: Context<'_>) -> Result<(), Error> {
     let sit_link = std::env::var("TELE").expect("Telegram Link not set");
     let discord_link = std::env::var("DISC").expect("Discord Link not set");
@@ -263,6 +266,7 @@ async fn links(ctx: Context<'_>) -> Result<(), Error> {
 }
 
 #[poise::command(slash_command, prefix_command)]
+/// Talk with Mistral, misleading, I know
 async fn chatgpt(
     ctx: Context<'_>,
     #[description = "Input to ChatGPT"] input: String,
