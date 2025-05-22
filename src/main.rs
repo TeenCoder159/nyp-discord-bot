@@ -82,6 +82,11 @@ async fn hw_help(ctx: Context<'_>) -> Result<(), Error> {
             }
         }
     }
+
+    log(&format!("Homework help called by: {}", ctx.author()), &ctx)
+        .await
+        .expect("Error while logging homework help");
+
     use serenity::builder::CreateAllowedMentions as Am;
     ctx.send(
         poise::CreateReply::default()
@@ -140,6 +145,10 @@ async fn ticket(ctx: Context<'_>) -> Result<(), Error> {
         }
     }
 
+    log(&format!("CREATE TICKET CALLED BY: {}", ctx.author()), &ctx)
+        .await
+        .expect("Error logging create ticket");
+
     // Create the channel with the first 4 digits of the user ID
     let ticket = CreateChannel::new(format!("ticket-{}", id_prefix))
         .kind(ChannelType::Text)
@@ -191,9 +200,9 @@ async fn close_ticket(ctx: Context<'_>) -> Result<(), Error> {
 
     // Delete the channel
     ctx.channel_id().delete(ctx.http()).await?;
-
-    // We don't need to send a confirmation message because the channel is deleted
-
+    log(&format!("CLOSE TICKET CALLED BY {}", ctx.author()), &ctx)
+        .await
+        .expect("Error while logging close_ticket");
     Ok(())
 }
 
@@ -211,7 +220,7 @@ async fn event_handler(
                     CreateMessage::new().content(format!("Hello {new_member}")),
                 )
                 .await?;
-            println!("Greeted {}", new_member);
+            println!("Greeted: {}", new_member);
         }
         _ => {}
     }
@@ -229,31 +238,21 @@ async fn event_handler(
 #[poise::command(slash_command)]
 /// Are you bored?
 async fn bored(ctx: Context<'_>) -> Result<(), Error> {
-    let i = get("I'm bored, give me 10 random things to do".to_string()).await;
-    let message: String = match i.lines().find(|x| x.contains("content\"")) {
-        Some(line) => {
-            let (_, a) = line
-                .split_once("content\":\"")
-                .expect("Failed to parse content");
-            let (b, _) = a.split_once("}").expect("Failed to parse content end");
-
-            b.to_string()
-        }
-        None => "Sorry I couldn't generate a response.".to_string(),
-    };
-    ctx.say(message.clone()).await?;
-    println!(
-        "Bored command called by: {} with output: {}",
-        ctx.author(),
-        message
-    );
-
+    ctx.say("Hi Bored, I'm the NYP SIT Bot!").await?;
+    println!("Bored command called by: {}", ctx.author());
+    log(&format!("Bored command called by: {}", ctx.author()), &ctx)
+        .await
+        .expect("Error logging bored command");
     Ok(())
 }
 
 #[poise::command(slash_command)]
 /// Get the useful links for NYP
 async fn links(ctx: Context<'_>) -> Result<(), Error> {
+    println!("Links command called by: {}", ctx.author());
+    log(&format!("Links command called by: {}", ctx.author()), &ctx)
+        .await
+        .expect("Error logging links");
     let sit_link = std::env::var("TELE").expect("Telegram Link not set");
     let discord_link = std::env::var("DISC").expect("Discord Link not set");
     let nyp_link = std::env::var("NYP").expect("Telegram Link not set");
@@ -302,6 +301,18 @@ async fn chatgpt(
         message
     );
 
+    log(
+        &format!(
+            "CHATGPT CALLED BY: {} WITH PROMPT: {}, AND OUTPUT: {}",
+            ctx.author(),
+            input,
+            message
+        ),
+        &ctx,
+    )
+    .await
+    .expect("Error with Logging chatgpt");
+
     Ok(())
 }
 
@@ -329,4 +340,21 @@ async fn get(input: String) -> String {
         .await
         .expect("msg");
     res
+}
+
+async fn log(input: &str, ctx: &Context<'_>) -> Result<(), Box<Error>> {
+    match ChannelId::new(1375117906207309905)
+        .send_message(
+            ctx.http(),
+            CreateMessage::new().content(format!("LOG: {}", input)),
+        )
+        .await
+    {
+        Ok(_) => {}
+        Err(e) => {
+            eprintln!("{e}")
+        }
+    };
+
+    Ok(())
 }
