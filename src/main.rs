@@ -1,6 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 // use std::thread;
 
+use dotenv::dotenv;
 use ::serenity::all::{ChannelId, CreateMessage, GuildId};
 use poise::serenity_prelude as serenity;
 use serde_json::Value;
@@ -16,6 +17,7 @@ type Context<'a> = poise::Context<'a, Data, Error>;
 
 #[tokio::main]
 async fn main() {
+    dotenv().ok();
     let token = std::env::var("DISCORD_TOKEN").expect("missing DISCORD_TOKEN");
     let guild_id = std::env::var("GUILD_ID")
         .expect("missing GUILD_ID")
